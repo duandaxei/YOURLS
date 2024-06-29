@@ -26,9 +26,10 @@
  * @param  string $url      URL to shorten
  * @param  string $keyword  optional "keyword"
  * @param  string $title    option title
+ * @param  int    $row_id   used to form unique IDs in the generated HTML
  * @return array            array with error/success state and short URL information
  */
-function yourls_add_new_link( $url, $keyword = '', $title = '' ) {
+function yourls_add_new_link( $url, $keyword = '', $title = '', $row_id = 1 ) {
     // Allow plugins to short-circuit the whole function
     $pre = yourls_apply_filter( 'shunt_add_new_link', false, $url, $keyword, $title );
     if ( false !== $pre ) {
@@ -80,9 +81,11 @@ function yourls_add_new_link( $url, $keyword = '', $title = '' ) {
         $return['status']   = 'fail';
         $return['code']     = 'error:url';
         $return['url']      = array( 'keyword' => $url_exists->keyword, 'url' => $url, 'title' => $url_exists->title, 'date' => $url_exists->timestamp, 'ip' => $url_exists->ip, 'clicks' => $url_exists->clicks );
-        $return['message']  = /* //translators: eg "http://someurl/ already exists" */ yourls_s( '%s already exists in database', yourls_trim_long_string( $url ) );
+        $return['message']  = /* //translators: eg "http://someurl/ already exists (short URL: sho.rt/abc)" */ yourls_s('%s already exists in database (short URL: %s)',
+            yourls_trim_long_string($url), preg_replace('!https?://!', '',  yourls_get_yourls_site()) . '/'. $url_exists->keyword );
         $return['title']    = $url_exists->title;
         $return['shorturl'] = yourls_link($url_exists->keyword);
+        $return['errorCode'] = $return['statusCode'] = '400'; // 400 Bad Request
 
         return yourls_apply_filter( 'add_new_link_already_stored_filter', $return, $url, $keyword, $title );
     }
@@ -138,9 +141,9 @@ function yourls_add_new_link( $url, $keyword = '', $title = '' ) {
             $return['status']   = 'success';
             $return['message']  = /* //translators: eg "http://someurl/ added to DB" */ yourls_s( '%s added to database', yourls_trim_long_string( $url ) );
             $return['title']    = $title;
-            $return['html']     = yourls_table_add_row( $keyword, $url, $title, $ip, 0, time() );
+            $return['html']     = yourls_table_add_row( $keyword, $url, $title, $ip, 0, time(), $row_id );
             $return['shorturl'] = yourls_link($keyword);
-            $return['statusCode'] = 200; // 200 OK
+            $return['statusCode'] = '200'; // 200 OK
         } else {
             // unknown database error, couldn't store result
             $return['status']   = 'fail';
@@ -167,11 +170,6 @@ function yourls_add_new_link( $url, $keyword = '', $title = '' ) {
  * @return string    Acceptable charset for short URLS keywords
  */
 function yourls_get_shorturl_charset() {
-    static $charset = null;
-    if ( $charset !== null ) {
-        return $charset;
-    }
-
     if ( defined( 'YOURLS_URL_CONVERT' ) && in_array( YOURLS_URL_CONVERT, [ 62, 64 ] ) ) {
         $charset = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     }
@@ -232,6 +230,8 @@ function yourls_keyword_is_reserved( $keyword ) {
 /**
  * Delete a link in the DB
  *
+ * @param  string $keyword   Short URL keyword
+ * @return int               Number of links deleted
  */
 function yourls_delete_link_by_keyword( $keyword ) {
     // Allow plugins to short-circuit the whole function
@@ -250,8 +250,12 @@ function yourls_delete_link_by_keyword( $keyword ) {
 /**
  * SQL query to insert a new link in the DB. Returns boolean for success or failure of the inserting
  *
+ * @param string $url
+ * @param string $keyword
+ * @param string $title
+ * @return bool true if insert succeeded, false if failed
  */
-function yourls_insert_link_in_db( $url, $keyword, $title = '' ) {
+function yourls_insert_link_in_db($url, $keyword, $title = '' ) {
     $url       = yourls_sanitize_url($url);
     $keyword   = yourls_sanitize_keyword($keyword);
     $title     = yourls_sanitize_title($title);
@@ -303,8 +307,13 @@ function yourls_long_url_exists( $url ) {
 /**
  * Edit a link
  *
+ * @param string $url
+ * @param string $keyword
+ * @param string $newkeyword
+ * @param string $title
+ * @return array Result of the edit and link information if successful
  */
-function yourls_edit_link( $url, $keyword, $newkeyword='', $title='' ) {
+function yourls_edit_link($url, $keyword, $newkeyword='', $title='' ) {
     // Allow plugins to short-circuit the whole function
     $pre = yourls_apply_filter( 'shunt_edit_link', null, $keyword, $url, $keyword, $newkeyword, $title );
     if ( null !== $pre )
@@ -374,6 +383,9 @@ function yourls_edit_link( $url, $keyword, $newkeyword='', $title='' ) {
 /**
  * Update a title link (no checks for duplicates etc..)
  *
+ * @param string $keyword
+ * @param string $title
+ * @return int number of rows updated
  */
 function yourls_edit_link_title( $keyword, $title ) {
     // Allow plugins to short-circuit the whole function
@@ -486,10 +498,14 @@ function yourls_get_keyword_infos( $keyword, $use_cache = true ) {
 }
 
 /**
- * Return (string) selected information associated with a keyword. Optional $notfound = string default message if nothing found
+ * Return information associated with a keyword (eg clicks, URL, title...). Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param string $field            Field to return (eg 'url', 'title', 'ip', 'clicks', 'timestamp', 'keyword')
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
-function yourls_get_keyword_info( $keyword, $field, $notfound = false ) {
+function yourls_get_keyword_info($keyword, $field, $notfound = false ) {
 
     // Allow plugins to short-circuit the whole function
     $pre = yourls_apply_filter( 'shunt_get_keyword_info', false, $keyword, $field, $notfound );
@@ -509,6 +525,9 @@ function yourls_get_keyword_info( $keyword, $field, $notfound = false ) {
 /**
  * Return title associated with keyword. Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
 function yourls_get_keyword_title( $keyword, $notfound = false ) {
     return yourls_get_keyword_info( $keyword, 'title', $notfound );
@@ -517,6 +536,9 @@ function yourls_get_keyword_title( $keyword, $notfound = false ) {
 /**
  * Return long URL associated with keyword. Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
 function yourls_get_keyword_longurl( $keyword, $notfound = false ) {
     return yourls_get_keyword_info( $keyword, 'url', $notfound );
@@ -525,6 +547,9 @@ function yourls_get_keyword_longurl( $keyword, $notfound = false ) {
 /**
  * Return number of clicks on a keyword. Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
 function yourls_get_keyword_clicks( $keyword, $notfound = false ) {
     return yourls_get_keyword_info( $keyword, 'clicks', $notfound );
@@ -533,6 +558,9 @@ function yourls_get_keyword_clicks( $keyword, $notfound = false ) {
 /**
  * Return IP that added a keyword. Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
 function yourls_get_keyword_IP( $keyword, $notfound = false ) {
     return yourls_get_keyword_info( $keyword, 'ip', $notfound );
@@ -541,6 +569,9 @@ function yourls_get_keyword_IP( $keyword, $notfound = false ) {
 /**
  * Return timestamp associated with a keyword. Optional $notfound = string default message if nothing found
  *
+ * @param string $keyword          Short URL keyword
+ * @param false|string $notfound   Optional string to return if keyword not found
+ * @return mixed|string
  */
 function yourls_get_keyword_timestamp( $keyword, $notfound = false ) {
     return yourls_get_keyword_info( $keyword, 'timestamp', $notfound );
@@ -564,12 +595,12 @@ function yourls_get_keyword_stats( $shorturl ) {
     if( !$res ) {
         // non existent link
         $return = array(
-            'statusCode' => 404,
+            'statusCode' => '404',
             'message'    => 'Error: short URL not found',
         );
     } else {
         $return = array(
-            'statusCode' => 200,
+            'statusCode' => '200',
             'message'    => 'success',
             'link'       => array(
                 'shorturl' => yourls_link($res->keyword),

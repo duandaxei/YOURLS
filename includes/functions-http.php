@@ -24,6 +24,10 @@ use WpOrg\Requests\Requests;
  *
  * @since 1.7
  * @see yourls_http_request
+ * @param string $url     URL to request
+ * @param array $headers  HTTP headers to send
+ * @param array $data     GET data
+ * @param array $options  Options to pass to Requests
  * @return mixed Response object, or error string
  */
 function yourls_http_get( $url, $headers = array(), $data = array(), $options = array() ) {
@@ -35,6 +39,10 @@ function yourls_http_get( $url, $headers = array(), $data = array(), $options = 
  *
  * @since 1.7
  * @see yourls_http_request
+ * @param string $url     URL to request
+ * @param array $headers  HTTP headers to send
+ * @param array $data     GET data
+ * @param array $options  Options to pass to Requests
  * @return mixed String (page body) or null if error
  */
 function yourls_http_get_body( $url, $headers = array(), $data = array(), $options = array() ) {
@@ -49,6 +57,10 @@ function yourls_http_get_body( $url, $headers = array(), $data = array(), $optio
  *
  * @since 1.7
  * @see yourls_http_request
+ * @param string $url     URL to request
+ * @param array $headers  HTTP headers to send
+ * @param array $data     POST data
+ * @param array $options  Options to pass to Requests
  * @return mixed Response object, or error string
  */
 function yourls_http_post( $url, $headers = array(), $data = array(), $options = array() ) {
@@ -62,6 +74,10 @@ function yourls_http_post( $url, $headers = array(), $data = array(), $options =
  *
  * @since 1.7
  * @see yourls_http_request
+ * @param string $url     URL to request
+ * @param array $headers  HTTP headers to send
+ * @param array $data     POST data
+ * @param array $options  Options to pass to Requests
  * @return mixed String (page body) or null if error
  */
 function yourls_http_post_body( $url, $headers = array(), $data = array(), $options = array() ) {
@@ -360,8 +376,8 @@ function yourls_check_core_version() {
  *  3) the object should not contain any other key
  *
  *  @since 1.7.7
- *  @param $json  JSON object to check
- *  @return bool  true if seems legit, false otherwise
+ *  @param object $json  JSON object to check
+ *  @return bool   true if seems legit, false otherwise
  */
 function yourls_validate_core_version_response($json) {
     return (
@@ -375,13 +391,14 @@ function yourls_validate_core_version_response($json) {
 
 /**
  * Get version number from Github zipball URL (last part of URL, really)
+ *
  * @since 1.8.3
  * @param string $zipurl eg 'https://api.github.com/repos/YOURLS/YOURLS/zipball/1.2.3'
  * @return string
  */
 function yourls_get_version_from_zipball_url($zipurl) {
     $version = '';
-    $parts = explode('/', parse_url(yourls_sanitize_url($zipurl), PHP_URL_PATH));
+    $parts = explode('/', parse_url(yourls_sanitize_url($zipurl), PHP_URL_PATH) ?? '');
     // expect at least 1 slash in path, return last part
     if( count($parts) > 1 ) {
         $version = end($parts);
@@ -391,11 +408,15 @@ function yourls_get_version_from_zipball_url($zipurl) {
 
 /**
  * Check if URL is from YOURLS/YOURLS repo on github
+ *
+ * @since 1.8.3
+ * @param string $url  URL to check
+ * @return bool
  */
 function yourls_is_valid_github_repo_url($url) {
     $url = yourls_sanitize_url($url);
     return (
-        join('.',array_slice(explode('.',parse_url($url, PHP_URL_HOST)), -2, 2)) === 'github.com'
+        join('.',array_slice(explode('.', parse_url($url, PHP_URL_HOST) ?? ''), -2, 2)) === 'github.com'
             // explodes on '.' (['api','github','com']) and keeps the last two elements
             // to make sure domain is either github.com or one of its subdomain (api.github.com for instance)
             // TODO: keep an eye on Github API to make sure it doesn't change some day to another domain (githubapi.com, ...)
@@ -406,6 +427,7 @@ function yourls_is_valid_github_repo_url($url) {
 
 /**
  * Check if object has only expected keys 'latest' and 'zipurl' containing strings
+ *
  * @since 1.8.3
  * @param object $json
  * @return bool
