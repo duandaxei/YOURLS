@@ -1,8 +1,9 @@
 name: Update translations
 
 on:
-  schedule:
-    - cron: '37 13 * * 1'
+  push:
+    tags:
+      - '*'
   workflow_dispatch:
 
 concurrency:
@@ -31,8 +32,8 @@ jobs:
         run: |
           find . -name "*.php" ! -path "./user/*" ! -path "./tests/*" ! -path "./includes/vendor/*" \
           | xargs xgettext \
-            --output=YOURLS.pot --package-name=YOURLS --package-version=$YOURLS_VERSION \
-            --add-location --language=PHP --sort-by-file \
+            --output=YOURLS.pot --package-name=YOURLS --package-version=$YOURLS_VERSION --foreign-user \
+            --add-location --language=PHP --from-code=UTF-8 --sort-by-file \
             --keyword=yourls__ \
             --keyword=yourls_e \
             --keyword=yourls_s \
