@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update-geoip:
     name: "Check for updated GeoIP DB"
@@ -36,12 +40,12 @@ jobs:
           URL="https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${MAXMIND_API_KEY}&suffix=tar.gz"
           REMOTE_MODIFIED=$(curl --silent --head "$URL" | grep "last-modified" | sed 's/last-modified: //')
           REMOTE_CTIME=$(date -d "$REMOTE_MODIFIED" +%s)
-          LOCAL_MODIFIED=$(curl -sL https://api.github.com/repos/YOURLS/YOURLS/commits?path=includes/geo/GeoLite2-Country.mmdb | \
+          LOCAL_MODIFIED=$(curl -fsSL https://api.github.com/repos/YOURLS/YOURLS/commits?path=includes/geo/GeoLite2-Country.mmdb | \
             jq -r '.[0]["commit"]["author"]["date"]')
           LOCAL_CTIME=$(date -d "$LOCAL_MODIFIED" +%s)
           echo "Remote: $REMOTE_CTIME ($(date -d @$REMOTE_CTIME))"
           echo "Local: $LOCAL_CTIME ($(date -d @$LOCAL_CTIME))"
-          if [ $LOCAL_CTIME -lt $REMOTE_CTIME ] ; then curl -s "$URL" | tar -zvx -C includes/geo/ --strip-components 1 -- ; fi
+          if [ $LOCAL_CTIME -lt $REMOTE_CTIME ] ; then curl -fsSL "$URL" | tar -zvx -C includes/geo/ --strip-components 1 -- ; fi
 
       - name: "Debug info: Show git status"
         run: git status -vv --untracked=all
@@ -52,6 +56,7 @@ jobs:
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
+        id: pull-request
         with:
           token: ${{ steps.generate-token.outputs.token }}
           base: master
@@ -64,3 +69,15 @@ jobs:
             Source: https://www.maxmind.com/en/account/login
           labels: |
             dependencies
+
+      - name: Approve a PR
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ steps.pull-request.outputs.pull-request-url }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Enable Pull Request Automerge
+        run: gh pr merge --auto --rebase "$PR_URL"
+        env:
+          PR_URL: ${{ steps.pull-request.outputs.pull-request-url }}
+          GITHUB_TOKEN: ${{ github.token }}
